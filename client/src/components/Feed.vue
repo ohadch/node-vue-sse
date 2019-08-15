@@ -2,7 +2,7 @@
   <div>
     <h1>Messages</h1>
     <ul>
-      <li v-for="message in messages" :key="message.id">{{ message }}</li>
+      <li v-for="message in sortedMessages" :key="message.id">{{ message.id }}. {{ message.text }}</li>
     </ul>
   </div>
 </template>
@@ -13,7 +13,7 @@
 let msgServer;
 
 export default {
-  name: "sse-test",
+  name: "Feed",
   data() {
     return {
       messages: []
@@ -35,29 +35,15 @@ export default {
           sse.close();
         });
 
-        // Listen for messages without a specified event
-        sse.subscribe("", data => {
-          console.warn("Received a message w/o an event!", data);
-        });
-
         // Listen for messages based on their event (in this case, "chat")
-        sse.subscribe("chat", message => {
-          this.messages.push(message);
+        sse.subscribe("message", message => {
+          // Make sure message does not exist
+          if (this.messages.find(m => m.id === message.id)) {
+            this.messages = this.messages.filter(m => m.id !== message.id)
+          }
+          this.messages.push(message)
         });
 
-        // Unsubscribes from event-less messages after 7 seconds
-        setTimeout(() => {
-          sse.unsubscribe("");
-
-          console.log("Stopped listening to event-less messages!");
-        }, 7000);
-
-        // Unsubscribes from chat messages after 7 seconds
-        setTimeout(() => {
-          sse.unsubscribe("chat");
-
-          console.log("Stopped listening to chat messages!");
-        }, 14000);
       })
       .catch(err => {
         // When this error is caught, it means the initial connection to the
@@ -69,6 +55,12 @@ export default {
     // Make sure to close the connection with the events server
     // when the component is destroyed, or we'll have ghost connections!
     msgServer.close();
+  },
+  computed: {
+    sortedMessages() {
+      let messages = this.messages;
+      return messages.sort((a, b) => a.id > b.id ? -1 : 1)
+    }
   }
 };
 </script> 
