@@ -1,27 +1,29 @@
 const express = require('express');
-const Stream = require('./stream');
+const sse = require('./services/sse');
+const r = require('rethinkdb');
 
+const { HOST, PORT } = require('./config/rethinkdb');
 const app = express();
-const stream = new Stream();
 
-app.use(stream.enable());
+app.use(sse.enable());
 
 app.get('/stream', function(request, response) {
-    stream.add(request, response);
-    stream.push_sse(1, "opened", { msg: 'connection opened!' });
+    sse.add(request, response);
+    sse.push_sse(1, "opened", { msg: 'connection opened!' });
+
+    // Listen for changes
+    r.connect( {host: HOST, port: PORT}, async function(err, connection) {
+        r.db('data').table('messages').changes().run(connection, function (err, cursor) {
+            if (err) throw err;
+            cursor.each(function (err, { new_val: record }) {
+                if (err) throw err;
+                sse.push_sse(1, "message", record);
+            });
+        });
+    });
+
 });
 
-app.get('/test_route', function(request, response){
-    stream.push_sse(2, "new_event", { event: true });
-    return response.json({ msg: 'admit one' });
-});
-
-let count = 0;
-
-setInterval(function(){
-    console.log("Pushing event");
-    stream.push_sse(1, "chat", { event: true });
-}, 1000);
 
 
 app.use(express.json());
